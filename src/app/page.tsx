@@ -45,39 +45,6 @@ function HomeInner() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-indigo-100">
       {/* Navigation */}
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <h1 className="text-2xl font-bold text-red-700">
-              Nexus Scheduling
-            </h1>
-            <div className="hidden md:block">
-              <div className="ml-10 flex items-center space-x-4">
-                {!user && (
-                  <Link
-                    href="/login"
-                    className="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium"
-                  >
-                    Login
-                  </Link>
-                )}
-                <a
-                  href="#features"
-                  className="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Features
-                </a>
-                <a
-                  href="#how-it-works"
-                  className="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  How It Works
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
 
       {/* Hero */}
       <div className="relative py-16 overflow-hidden">
