@@ -1,7 +1,7 @@
 // frontend/src/app/admin/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPost, apiPatch } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -17,6 +17,12 @@ type UserRow = {
   role: Role;
   is_banned: boolean;
   created_at: string;
+};
+
+type SsmOption = {
+  user_id: number;
+  full_name: string;
+  email: string;
 };
 
 type Availability = {
@@ -87,6 +93,125 @@ async function del(path: string): Promise<void> {
     throw new Error(`DELETE ${path} failed: ${res.status}`);
 }
 
+/** ========= Reusable SSM Combobox =========
+ * - Typeahead search against /user/search?role=ssm&q=
+ * - Keyboard + mouse selection
+ * - Returns the chosen SSM option via onSelect
+ */
+function SsmPicker({
+  label = "Select SSM",
+  placeholder = "Type name or email…",
+  value,
+  onSelect,
+}: {
+  label?: string;
+  placeholder?: string;
+  value: SsmOption | null;
+  onSelect: (opt: SsmOption | null) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [options, setOptions] = useState<SsmOption[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (!containerRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // search ssms (debounced)
+  useEffect(() => {
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      try {
+        const qs = new URLSearchParams({
+          role: "ssm",
+          limit: "25",
+          offset: "0",
+        });
+        if (query.trim()) qs.set("q", query.trim());
+        const data = await apiGet<UserRow[]>(`/user/search?${qs.toString()}`);
+        if (cancelled) return;
+        setOptions(
+          data.map((u) => ({
+            user_id: u.user_id,
+            full_name: u.full_name,
+            email: u.email,
+          }))
+        );
+        setOpen(true);
+      } catch {
+        if (!cancelled) setOptions([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    const t = setTimeout(run, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [query]);
+
+  // show selected in the input when value changes
+  useEffect(() => {
+    if (value) setQuery(`${value.full_name} <${value.email}>`);
+  }, [value]);
+
+  return (
+    <div className="w-full" ref={containerRef}>
+      <label className="block text-sm font-medium text-gray-700 mb-1">
+        {label}
+      </label>
+      <div className="relative">
+        <input
+          className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 text-black"
+          placeholder={placeholder}
+          value={query}
+          onFocus={() => setOpen(true)}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            // if user edits, clear current selection
+            if (value) onSelect(null);
+          }}
+        />
+        {open && (
+          <div className="absolute z-20 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-64 overflow-auto">
+            {loading ? (
+              <div className="px-3 py-2 text-sm text-gray-500">Searching…</div>
+            ) : options.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-gray-500">
+                {query ? "No matches" : "Start typing to search SSMs"}
+              </div>
+            ) : (
+              options.map((opt) => (
+                <button
+                  key={opt.user_id}
+                  type="button"
+                  onClick={() => {
+                    onSelect(opt);
+                    setOpen(false);
+                    setQuery(`${opt.full_name} <${opt.email}>`);
+                  }}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-50"
+                >
+                  <div className="font-medium text-sm">{opt.full_name}</div>
+                  <div className="text-xs text-gray-500">{opt.email}</div>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ---------- page ----------
 export default function AdminPage() {
   const { user, loading: authLoading } = useAuth();
@@ -106,13 +231,13 @@ export default function AdminPage() {
   const offset = (page - 1) * limit;
 
   // ===== Pathways tab state =====
-  const [ssmIdForPathways, setSsmIdForPathways] = useState<string>("");
+  const [ssmForPathways, setSsmForPathways] = useState<SsmOption | null>(null);
   const [ssmPathwayIds, setSsmPathwayIds] = useState<number[]>([]);
   const [loadingPathways, setLoadingPathways] = useState(false);
   const [newPathwaysCsv, setNewPathwaysCsv] = useState("");
 
   // ===== Availability tab (Admin overrides for an SSM) =====
-  const [ssmIdForAvail, setSsmIdForAvail] = useState<string>("");
+  const [ssmForAvail, setSsmForAvail] = useState<SsmOption | null>(null);
   const [availRows, setAvailRows] = useState<Availability[]>([]);
   const [loadingAvail, setLoadingAvail] = useState(false);
   const [newAvail, setNewAvail] = useState({
@@ -200,12 +325,11 @@ export default function AdminPage() {
 
   // ---- pathways handlers ----
   async function loadPathwaysForSsm() {
-    const id = Number(ssmIdForPathways);
-    if (!id) return;
+    if (!ssmForPathways) return;
     try {
       setLoadingPathways(true);
       const resp = await apiGet<{ ssm_id: number; pathway_ids: number[] }>(
-        `/admin/ssm/${id}/pathways`
+        `/admin/ssm/${ssmForPathways.user_id}/pathways`
       );
       setSsmPathwayIds(resp.pathway_ids);
       setNewPathwaysCsv(resp.pathway_ids.join(","));
@@ -217,8 +341,7 @@ export default function AdminPage() {
   }
 
   async function savePathwaysForSsm() {
-    const id = Number(ssmIdForPathways);
-    if (!id) return;
+    if (!ssmForPathways) return;
     const cleanIds = newPathwaysCsv
       .split(",")
       .map((s) => s.trim())
@@ -229,7 +352,7 @@ export default function AdminPage() {
     try {
       setLoadingPathways(true);
       const resp = await putJSON<{ ssm_id: number; pathway_ids: number[] }>(
-        `/admin/ssm/${id}/pathways`,
+        `/admin/ssm/${ssmForPathways.user_id}/pathways`,
         { pathway_ids: cleanIds }
       );
       setSsmPathwayIds(resp.pathway_ids);
@@ -244,11 +367,12 @@ export default function AdminPage() {
 
   // ---- availability handlers ----
   async function loadAvailability() {
-    const id = Number(ssmIdForAvail);
-    if (!id) return;
+    if (!ssmForAvail) return;
     try {
       setLoadingAvail(true);
-      const rows = await apiGet<Availability[]>(`/availability/user/${id}`);
+      const rows = await apiGet<Availability[]>(
+        `/availability/user/${ssmForAvail.user_id}`
+      );
       setAvailRows(rows);
     } catch (e: any) {
       addToast(e.message || "Failed to load availability", "error");
@@ -258,8 +382,7 @@ export default function AdminPage() {
   }
 
   async function addAvailability() {
-    const id = Number(ssmIdForAvail);
-    if (!id) return;
+    if (!ssmForAvail) return;
     try {
       setLoadingAvail(true);
       const payload = {
@@ -268,7 +391,7 @@ export default function AdminPage() {
         end_time: `${newAvail.end}:00`,
       };
       const rec = await apiPost<Availability>(
-        `/admin/ssm/${id}/availability`,
+        `/admin/ssm/${ssmForAvail.user_id}/availability`,
         payload
       );
       setAvailRows((prev) => [...prev, rec]);
@@ -331,7 +454,7 @@ export default function AdminPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
         <div>
-          <h1 className="text-2xl font-bold">Admin</h1>
+          <h1 className="text-2xl font-bold text-red-600">Admin</h1>
           <p className="text-gray-600">
             Manage students, SSM assignments, and reporting
           </p>
@@ -387,13 +510,13 @@ export default function AdminPage() {
           {/* Controls */}
           <div className="bg-white rounded-lg shadow p-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
             <input
-              className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500"
+              className="flex-1 border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500 text-black"
               placeholder="Search by name, email, or ID…"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
             <select
-              className="border border-gray-300 rounded-md px-2 py-2"
+              className="border border-gray-300 rounded-md px-2 py-2 text-black"
               value={limit}
               onChange={(e) => {
                 setPage(1);
@@ -519,34 +642,43 @@ export default function AdminPage() {
       {activeTab === "pathways" && (
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow p-4">
-            <h2 className="text-lg font-semibold mb-2">
+            <h2 className="text-lg font-semibold mb-2 text-red-600">
               Assign Pathways to SSM
             </h2>
-            <div className="grid gap-3 sm:grid-cols-[220px_1fr_auto]">
-              <input
-                className="border border-gray-300 rounded-md px-3 py-2"
-                placeholder="SSM ID (number)"
-                value={ssmIdForPathways}
-                onChange={(e) => setSsmIdForPathways(e.target.value)}
+
+            <div className="grid gap-3 sm:grid-cols-[minmax(260px,360px)_1fr_auto]">
+              <SsmPicker
+                label="SSM"
+                value={ssmForPathways}
+                onSelect={(opt) => {
+                  setSsmForPathways(opt);
+                  setSsmPathwayIds([]);
+                  setNewPathwaysCsv("");
+                }}
               />
-              <input
-                className="border border-gray-300 rounded-md px-3 py-2"
-                placeholder="Pathway IDs (comma-separated, e.g. 1,2,3)"
-                value={newPathwaysCsv}
-                onChange={(e) => setNewPathwaysCsv(e.target.value)}
-              />
-              <div className="flex gap-2">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Pathway IDs (comma-separated)
+                </label>
+                <input
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 text-black"
+                  placeholder="e.g. 1,2,3"
+                  value={newPathwaysCsv}
+                  onChange={(e) => setNewPathwaysCsv(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2 items-end">
                 <button
                   onClick={loadPathwaysForSsm}
                   className="px-3 py-2 rounded border text-sm hover:bg-gray-50"
-                  disabled={loadingPathways || !ssmIdForPathways}
+                  disabled={loadingPathways || !ssmForPathways}
                 >
                   {loadingPathways ? "Loading…" : "Load"}
                 </button>
                 <button
                   onClick={savePathwaysForSsm}
                   className="px-3 py-2 rounded border border-red-600 text-red-700 text-sm hover:bg-red-50"
-                  disabled={loadingPathways || !ssmIdForPathways}
+                  disabled={loadingPathways || !ssmForPathways}
                 >
                   Save
                 </button>
@@ -567,61 +699,85 @@ export default function AdminPage() {
       {activeTab === "availability" && (
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow p-4">
-            <h2 className="text-lg font-semibold mb-2">SSM Availability</h2>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <input
-                className="border border-gray-300 rounded-md px-3 py-2"
-                placeholder="SSM ID (number)"
-                value={ssmIdForAvail}
-                onChange={(e) => setSsmIdForAvail(e.target.value)}
+            <h2 className="text-lg font-semibold mb-2 text-red-600">
+              SSM Availability
+            </h2>
+
+            <div className="grid gap-3 sm:grid-cols-[minmax(260px,360px)_auto]">
+              <SsmPicker
+                label="SSM"
+                value={ssmForAvail}
+                onSelect={(opt) => {
+                  setSsmForAvail(opt);
+                  setAvailRows([]);
+                }}
               />
-              <button
-                onClick={loadAvailability}
-                className="px-3 py-2 rounded border text-sm hover:bg-gray-50"
-                disabled={loadingAvail || !ssmIdForAvail}
-              >
-                {loadingAvail ? "Loading…" : "Load"}
-              </button>
+              <div className="flex items-end">
+                <button
+                  onClick={loadAvailability}
+                  className="px-3 py-2 rounded border text-sm hover:bg-gray-50"
+                  disabled={loadingAvail || !ssmForAvail}
+                >
+                  {loadingAvail ? "Loading…" : "Load"}
+                </button>
+              </div>
             </div>
 
             {/* Add row */}
             <div className="mt-4 grid gap-3 sm:grid-cols-[160px_1fr_1fr_auto]">
-              <select
-                className="border border-gray-300 rounded-md px-2 py-2"
-                value={newAvail.dow}
-                onChange={(e) =>
-                  setNewAvail((p) => ({ ...p, dow: Number(e.target.value) }))
-                }
-              >
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
-                  (d, i) => (
-                    <option key={i} value={i}>{`${i} — ${d}`}</option>
-                  )
-                )}
-              </select>
-              <input
-                type="time"
-                className="border border-gray-300 rounded-md px-2 py-2"
-                value={newAvail.start}
-                onChange={(e) =>
-                  setNewAvail((p) => ({ ...p, start: e.target.value }))
-                }
-              />
-              <input
-                type="time"
-                className="border border-gray-300 rounded-md px-2 py-2"
-                value={newAvail.end}
-                onChange={(e) =>
-                  setNewAvail((p) => ({ ...p, end: e.target.value }))
-                }
-              />
-              <button
-                onClick={addAvailability}
-                className="px-3 py-2 rounded border border-red-600 text-red-700 text-sm hover:bg-red-50"
-                disabled={!ssmIdForAvail}
-              >
-                Add
-              </button>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Day of week
+                </label>
+                <select
+                  className="border border-gray-300 rounded-md px-2 py-2 w-full text-black"
+                  value={newAvail.dow}
+                  onChange={(e) =>
+                    setNewAvail((p) => ({ ...p, dow: Number(e.target.value) }))
+                  }
+                >
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(
+                    (d, i) => (
+                      <option key={i} value={i}>{`${i} — ${d}`}</option>
+                    )
+                  )}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Start time
+                </label>
+                <input
+                  type="time"
+                  className="border border-gray-300 rounded-md px-2 py-2 w-full text-black"
+                  value={newAvail.start}
+                  onChange={(e) =>
+                    setNewAvail((p) => ({ ...p, start: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  End time
+                </label>
+                <input
+                  type="time"
+                  className="border border-gray-300 rounded-md px-2 py-2 w-full text-black"
+                  value={newAvail.end}
+                  onChange={(e) =>
+                    setNewAvail((p) => ({ ...p, end: e.target.value }))
+                  }
+                />
+              </div>
+              <div className="flex items-end">
+                <button
+                  onClick={addAvailability}
+                  className="px-3 py-2 rounded border border-red-600 text-red-700 text-sm hover:bg-red-50 w-full"
+                  disabled={!ssmForAvail}
+                >
+                  Add
+                </button>
+              </div>
             </div>
 
             {/* Table */}
@@ -686,17 +842,17 @@ export default function AdminPage() {
       {activeTab === "reports" && (
         <div className="space-y-6">
           <div className="bg-white rounded-lg shadow p-4">
-            <h2 className="text-lg font-semibold mb-2">Reports</h2>
+            <h2 className="text-lg font-semibold mb-2 text-red-600">Reports</h2>
             <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
               <input
                 type="datetime-local"
-                className="border border-gray-300 rounded-md px-3 py-2"
+                className="border border-gray-300 rounded-md px-3 py-2 text-black"
                 value={rStart}
                 onChange={(e) => setRStart(e.target.value)}
               />
               <input
                 type="datetime-local"
-                className="border border-gray-300 rounded-md px-3 py-2"
+                className="border border-gray-300 rounded-md px-3 py-2 text-black"
                 value={rEnd}
                 onChange={(e) => setREnd(e.target.value)}
               />
@@ -726,7 +882,7 @@ export default function AdminPage() {
             {/* By SSM */}
             {bySsm.length > 0 && (
               <div className="mt-8">
-                <h3 className="font-semibold mb-2">By SSM</h3>
+                <h3 className="font-semibold mb-2 text-red-600">By SSM</h3>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
@@ -766,7 +922,7 @@ export default function AdminPage() {
             {/* By Pathway */}
             {byPathway.length > 0 && (
               <div className="mt-8">
-                <h3 className="font-semibold mb-2">By Pathway</h3>
+                <h3 className="font-semibold mb-2 text-red-600">By Pathway</h3>
                 <div className="overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">

@@ -28,7 +28,7 @@ export default function HomePage() {
     if (user) {
       if (user.role === "admin") router.replace("/admin");
       else if (user.role === "ssm") router.replace("/ssm");
-      else router.replace("/"); // fallback if an unexpected role sneaks in
+      else router.replace("/");
     }
   }, [loading, discoUserId, user, router]);
 
@@ -45,41 +45,6 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-indigo-100">
-      {/* Navigation */}
-      <nav className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between h-16 items-center">
-            <h1 className="text-2xl font-bold text-red-700">
-              Nexus Scheduling
-            </h1>
-            <div className="hidden md:block">
-              <div className="ml-10 flex items-center space-x-4">
-                {!user && (
-                  <Link
-                    href="/login"
-                    className="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium"
-                  >
-                    Login
-                  </Link>
-                )}
-                <a
-                  href="#features"
-                  className="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  Features
-                </a>
-                <a
-                  href="#how-it-works"
-                  className="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium"
-                >
-                  How It Works
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      </nav>
-
       {/* Hero */}
       <div className="relative py-16 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -236,67 +201,65 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="mt-12">
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
-              {/* Student Step */}
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <div className="flex items-center justify-center h-12 w-12 rounded-md bg-red-500 text-white text-xl font-bold">
-                  1
-                </div>
-                <h3 className="mt-4 text-lg font-medium text-gray-900">
-                  For Students
-                </h3>
-                <p className="mt-2 text-base text-gray-600">
-                  Access your booking page through your LMS with your
-                  disco_user_id.
-                </p>
-                <div className="mt-4 text-xs text-gray-500 font-mono bg-gray-50 p-2 rounded">
-                  /student?disco_user_id=your_id
-                </div>
+          <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-3">
+            {/* Student Step */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-center h-12 w-12 rounded-md bg-red-500 text-white text-xl font-bold">
+                1
               </div>
-
-              {/* SSM Step */}
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <div className="flex items-center justify-center h-12 w-12 rounded-md bg-red-500 text-white text-xl font-bold">
-                  2
-                </div>
-                <h3 className="mt-4 text-lg font-medium text-gray-900">
-                  For SSMs
-                </h3>
-                <p className="mt-2 text-base text-gray-600">
-                  Set your availability and manage your session bookings through
-                  your dashboard.
-                </p>
-                <div className="mt-4">
-                  <a
-                    href="/login"
-                    className="text-red-600 hover:text-red-800 text-sm font-medium"
-                  >
-                    Login to get started →
-                  </a>
-                </div>
+              <h3 className="mt-4 text-lg font-medium text-gray-900">
+                For Students
+              </h3>
+              <p className="mt-2 text-base text-gray-600">
+                Access your booking page through your LMS with your
+                disco_user_id.
+              </p>
+              <div className="mt-4 text-xs text-gray-500 font-mono bg-gray-50 p-2 rounded">
+                /student?disco_user_id=your_id
               </div>
+            </div>
 
-              {/* Admin Step */}
-              <div className="bg-white rounded-lg shadow-md p-6">
-                <div className="flex items-center justify-center h-12 w-12 rounded-md bg-red-500 text-white text-xl font-bold">
-                  3
-                </div>
-                <h3 className="mt-4 text-lg font-medium text-gray-900">
-                  For Admins
-                </h3>
-                <p className="mt-2 text-base text-gray-600">
-                  Oversee the scheduling system, manage users, and generate
-                  reports.
-                </p>
-                <div className="mt-4">
-                  <a
-                    href="/login"
-                    className="text-red-600 hover:text-red-800 text-sm font-medium"
-                  >
-                    Access admin dashboard →
-                  </a>
-                </div>
+            {/* SSM Step */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-center h-12 w-12 rounded-md bg-red-500 text-white text-xl font-bold">
+                2
+              </div>
+              <h3 className="mt-4 text-lg font-medium text-gray-900">
+                For SSMs
+              </h3>
+              <p className="mt-2 text-base text-gray-600">
+                Set your availability and manage your session bookings through
+                your dashboard.
+              </p>
+              <div className="mt-4">
+                <a
+                  href="/login"
+                  className="text-red-600 hover:text-red-800 text-sm font-medium"
+                >
+                  Login to get started →
+                </a>
+              </div>
+            </div>
+
+            {/* Admin Step */}
+            <div className="bg-white rounded-lg shadow-md p-6">
+              <div className="flex items-center justify-center h-12 w-12 rounded-md bg-red-500 text-white text-xl font-bold">
+                3
+              </div>
+              <h3 className="mt-4 text-lg font-medium text-gray-900">
+                For Admins
+              </h3>
+              <p className="mt-2 text-base text-gray-600">
+                Oversee the scheduling system, manage users, and generate
+                reports.
+              </p>
+              <div className="mt-4">
+                <a
+                  href="/login"
+                  className="text-red-600 hover:text-red-800 text-sm font-medium"
+                >
+                  Access admin dashboard →
+                </a>
               </div>
             </div>
           </div>
