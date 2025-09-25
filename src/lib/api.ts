@@ -15,7 +15,6 @@ function getAuthHeader(): Record<string, string> {
 export async function apiGet<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     cache: "no-store",
-    credentials: "include",
     headers: { ...getAuthHeader() },
   });
   if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
@@ -27,7 +26,6 @@ export async function apiPost<T>(path: string, body: unknown): Promise<T> {
     method: "POST",
     headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: JSON.stringify(body),
-    credentials: "include",
   });
   if (!res.ok) throw new Error(`POST ${path} failed: ${res.status}`);
   return res.json() as Promise<T>;
@@ -38,7 +36,6 @@ export async function apiPatch<T>(path: string, body?: unknown): Promise<T> {
     method: "PATCH",
     headers: { "Content-Type": "application/json", ...getAuthHeader() },
     body: body ? JSON.stringify(body) : undefined,
-    credentials: "include",
   });
   if (!res.ok) throw new Error(`PATCH ${path} failed: ${res.status}`);
   return res.json() as Promise<T>;

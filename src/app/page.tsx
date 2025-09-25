@@ -6,6 +6,8 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 
+console.log("API_BASE:", process.env.NEXT_PUBLIC_API_BASE_URL);
+
 function HomeInner() {
   const { user, loading } = useAuth();
   const router = useRouter();
