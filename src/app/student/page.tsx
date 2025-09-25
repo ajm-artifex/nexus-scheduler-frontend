@@ -14,12 +14,19 @@ function useQueryParam(key: string) {
   return value;
 }
 
-// Define a proper type for SSM information
 interface SSMInfo {
   id: number;
   name: string;
   email?: string;
 }
+
+type SlotView = {
+  ssm_id: number;
+  label: string;
+  start: string;
+  end: string;
+  ssm_name: string;
+};
 
 export default function StudentPage() {
   const discoUserId = useQueryParam("disco_user_id");
@@ -27,89 +34,85 @@ export default function StudentPage() {
   const [pathwayId, setPathwayId] = useState<number>(1);
   const [data, setData] = useState<AvailabilityResponse | null>(null);
   const [ssmInfo, setSsmInfo] = useState<Record<number, SSMInfo>>({});
-  const [selectedSlot, setSelectedSlot] = useState<{
-    ssm_id: number;
-    start: string;
-    end: string;
-    ssm_name: string;
-  } | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<SlotView | null>(null);
   const [loading, setLoading] = useState(false);
   const [slotLoading, setSlotLoading] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
   const { addToast } = useToast();
 
+  // load student by disco_user_id
   useEffect(() => {
     if (!discoUserId) return;
     setLoading(true);
     apiGet<UserOut>(`/user/${discoUserId}`)
       .then(setStudent)
-      .catch((e) => addToast(e.message, "error"))
+      .catch((err: unknown) => {
+        const msg =
+          err instanceof Error ? err.message : "Failed to load student";
+        addToast(msg, "error");
+      })
       .finally(() => setLoading(false));
   }, [discoUserId, addToast]);
 
-  // Fetch SSM information
+  // optional: fetch SSM directory (if endpoint exists). Falls back to “SSM {id}”
   useEffect(() => {
     apiGet<SSMInfo[]>("/ssms")
       .then((ssms) => {
-        const ssmMap: Record<number, SSMInfo> = {};
-        ssms.forEach((ssm) => {
-          ssmMap[ssm.id] = ssm;
+        const map: Record<number, SSMInfo> = {};
+        ssms.forEach((s) => {
+          map[s.id] = s;
         });
-        setSsmInfo(ssmMap);
+        setSsmInfo(map);
       })
       .catch(() => {
-        // Silently fail - we'll use fallback names
-        console.warn("Could not fetch SSM details, using fallback names");
+        // Silently ignore; fallback names will be used
+        // console.warn("Could not fetch SSM details, using fallback names");
       });
   }, []);
 
+  // load raw availability payload for selected pathway
   useEffect(() => {
     if (!pathwayId) return;
     setSlotLoading(true);
     apiGet<AvailabilityResponse>(`/availability/${pathwayId}`)
       .then(setData)
-      .catch((e) => addToast(e.message, "error"))
+      .catch((err: unknown) => {
+        const msg =
+          err instanceof Error ? err.message : "Failed to load availability";
+        addToast(msg, "error");
+      })
       .finally(() => setSlotLoading(false));
   }, [pathwayId, addToast]);
 
-  const slots = useMemo(() => {
+  // build visible slot list (2 weeks ahead, 30-min blocks)
+  const slots = useMemo<SlotView[]>(() => {
     if (!data) return [];
 
-    const results: {
-      ssm_id: number;
-      label: string;
-      start: string;
-      end: string;
-      ssm_name: string;
-    }[] = [];
-
+    const results: SlotView[] = [];
     const now = new Date();
 
     for (const avail of data.availabilities) {
-      // Create slots for the next 2 weeks
       for (let week = 0; week < 2; week++) {
-        const todayDow = now.getDay();
+        const todayDow = now.getDay(); // 0=Sun
         const deltaDays = ((avail.day_of_week - todayDow + 7) % 7) + week * 7;
+
         const start = new Date(now);
         start.setDate(now.getDate() + deltaDays);
+
         const [h, m] = avail.start_time.split(":").map(Number);
         start.setHours(h, m, 0, 0);
+
         const end = new Date(start.getTime() + 30 * 60 * 1000);
 
-        // Skip past slots
         if (start < now) continue;
 
-        const startIso = start.toISOString();
-        const endIso = end.toISOString();
-
-        // Use SSM name if available, otherwise fall back to "SSM {id}"
-        const ssmName = ssmInfo[avail.user_id]?.name || `SSM ${avail.user_id}`;
+        const ssmName = ssmInfo[avail.user_id]?.name ?? `SSM ${avail.user_id}`;
 
         results.push({
           ssm_id: avail.user_id,
           label: `${start.toLocaleString()} (${ssmName})`,
-          start: startIso,
-          end: endIso,
+          start: start.toISOString(),
+          end: end.toISOString(),
           ssm_name: ssmName,
         });
       }
@@ -131,21 +134,31 @@ export default function StudentPage() {
         start_datetime: selectedSlot.start,
         end_datetime: selectedSlot.end,
       };
-      const res = await apiPost<BookingOut>(`/booking`, payload);
+      await apiPost<BookingOut>(`/booking`, payload);
       addToast(
         `Booking confirmed! Your session is scheduled with ${selectedSlot.ssm_name}`,
         "success"
       );
       setSelectedSlot(null);
 
-      // Refresh availability
+      // refresh availability
       setSlotLoading(true);
       apiGet<AvailabilityResponse>(`/availability/${pathwayId}`)
         .then(setData)
-        .catch((e) => addToast(e.message, "error"))
+        .catch((err: unknown) => {
+          const msg =
+            err instanceof Error
+              ? err.message
+              : "Failed to refresh availability";
+          addToast(msg, "error");
+        })
         .finally(() => setSlotLoading(false));
-    } catch (e: any) {
-      addToast(e.message || "Booking failed. Please try again.", "error");
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Booking failed. Please try again.";
+      addToast(msg, "error");
     } finally {
       setBookingLoading(false);
     }
@@ -158,8 +171,8 @@ export default function StudentPage() {
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
             <h2 className="font-semibold text-lg mb-2">Access Required</h2>
             <p>
-              Missing disco_user_id in URL. Please access this page through your
-              learning platform.
+              Missing <code>disco_user_id</code> in the URL. Please access this
+              page through your learning platform.
             </p>
           </div>
         </div>
@@ -171,7 +184,7 @@ export default function StudentPage() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-red-100 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto" />
           <p className="mt-4 text-gray-600">Loading your information...</p>
         </div>
       </div>
@@ -188,17 +201,25 @@ export default function StudentPage() {
             {student && (
               <div className="flex items-center">
                 <div className="bg-red-500 rounded-full p-2 mr-3">
+                  {/* Heroicons: user */}
                   <svg
                     className="w-5 h-5"
+                    viewBox="0 0 24 24"
                     fill="none"
                     stroke="currentColor"
-                    viewBox="0 0 24 24"
+                    aria-hidden="true"
                   >
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M16 7a4 4 0 11-8 极0 4 4 0 018 0zM12 14a7 7 0 00-7 极7h14a7 7 0 00-7-7z"
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0z"
+                    />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
                     />
                   </svg>
                 </div>
@@ -256,18 +277,20 @@ export default function StudentPage() {
                 {slotLoading ? (
                   <div className="text-center py-8">
                     <div className="inline-flex items-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600 mr-2"></div>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600 mr-2" />
                       <span>Loading available slots...</span>
                     </div>
                   </div>
                 ) : slots.length === 0 ? (
-                  <div className="text-center极 py-8 bg-gray-50 rounded-lg">
+                  <div className="text-center py-8 bg-gray-50 rounded-lg">
                     <svg
                       className="w-12 h-12 text-gray-400 mx-auto mb-3"
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
+                      aria-hidden="true"
                     >
+                      {/* Heroicons: clock */}
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -282,14 +305,14 @@ export default function StudentPage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-96 overflow-y-auto p-1">
-                    {slots.map((slot, index) => {
+                    {slots.map((slot) => {
                       const startDate = new Date(slot.start);
                       const isToday =
                         new Date().toDateString() === startDate.toDateString();
 
                       return (
                         <button
-                          key={index}
+                          key={`${slot.ssm_id}-${slot.start}`}
                           onClick={() => setSelectedSlot(slot)}
                           className={`p-4 border rounded-xl text-left transition-all ${
                             selectedSlot?.start === slot.start
@@ -297,7 +320,7 @@ export default function StudentPage() {
                               : "border-gray-200 hover:border-red-300 hover:bg-red-50"
                           }`}
                         >
-                          <div className="flex justify-between items-start mb极-2">
+                          <div className="flex justify-between items-start mb-2">
                             <div className="font-medium text-gray-900">
                               {slot.ssm_name}
                             </div>
@@ -314,8 +337,8 @@ export default function StudentPage() {
                             {startDate.toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
-                            })}
-                            {" - "}
+                            })}{" "}
+                            -{" "}
                             {new Date(slot.end).toLocaleTimeString([], {
                               hour: "2-digit",
                               minute: "2-digit",
@@ -354,7 +377,7 @@ export default function StudentPage() {
                     >
                       {bookingLoading ? (
                         <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
                           Booking...
                         </>
                       ) : (
@@ -372,13 +395,15 @@ export default function StudentPage() {
                     className="w-4 h-4 mr-2 text-gray-500"
                     fill="none"
                     stroke="currentColor"
-                    viewBox="极 0 0 24 24"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
                   >
+                    {/* Heroicons: information-circle */}
                     <path
                       strokeLinecap="round"
                       strokeLinejoin="round"
                       strokeWidth={2}
-                      d="M13 16h-1v-4h-1极m1-4h.01M21 12a9 9 0 11-18 0 9 9 极0 0118 0z"
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
                     />
                   </svg>
                   Important Information
@@ -386,7 +411,7 @@ export default function StudentPage() {
                 <ul className="text-sm text-gray-600 space-y-1">
                   <li>• Sessions are 30 minutes long</li>
                   <li>• You can cancel up to 24 hours before your session</li>
-                  <li>• Bring any questions or topics you'd like to discuss</li>
+                  <li>• Bring any questions or topics you’d like to discuss</li>
                 </ul>
               </div>
             </div>

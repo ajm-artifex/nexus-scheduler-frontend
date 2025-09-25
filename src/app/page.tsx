@@ -1,13 +1,12 @@
 // frontend/src/app/page.tsx
-
 "use client";
 
-import { useEffect } from "react";
+import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 
-export default function HomePage() {
+function HomeInner() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const params = useSearchParams();
@@ -45,6 +44,41 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-red-50 to-indigo-100">
+      {/* Navigation */}
+      <nav className="bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16 items-center">
+            <h1 className="text-2xl font-bold text-red-700">
+              Nexus Scheduling
+            </h1>
+            <div className="hidden md:block">
+              <div className="ml-10 flex items-center space-x-4">
+                {!user && (
+                  <Link
+                    href="/login"
+                    className="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium"
+                  >
+                    Login
+                  </Link>
+                )}
+                <a
+                  href="#features"
+                  className="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  Features
+                </a>
+                <a
+                  href="#how-it-works"
+                  className="text-gray-600 hover:text-red-600 px-3 py-2 rounded-md text-sm font-medium"
+                >
+                  How It Works
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </nav>
+
       {/* Hero */}
       <div className="relative py-16 overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -75,7 +109,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Features Section */}
+      {/* Features */}
       <div id="features" className="py-12 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
@@ -87,101 +121,102 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="mt-12">
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-              {/* Feature 1 */}
-              <div className="pt-6">
-                <div className="flow-root bg-gray-50 rounded-lg px-6 pb-8">
-                  <div className="-mt-6">
-                    <div>
-                      <span className="inline-flex items-center justify-center p-3 bg-red-500 rounded-md shadow-lg">
-                        <svg
-                          className="h-6 w-6 text-white"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                          />
-                        </svg>
-                      </span>
-                    </div>
-                    <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
-                      Easy Scheduling
-                    </h3>
-                    <p className="mt-5 text-base text-gray-600">
-                      Students can easily book sessions based on SSM
-                      availability without back-and-forth emails.
-                    </p>
+          <div className="mt-12 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            {/* Feature 1 */}
+            <div className="pt-6">
+              <div className="flow-root bg-gray-50 rounded-lg px-6 pb-8">
+                <div className="-mt-6">
+                  <div>
+                    <span className="inline-flex items-center justify-center p-3 bg-red-500 rounded-md shadow-lg">
+                      <svg
+                        className="h-6 w-6 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                        />
+                      </svg>
+                    </span>
                   </div>
+                  <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                    Easy Scheduling
+                  </h3>
+                  <p className="mt-5 text-base text-gray-600">
+                    Students can easily book sessions based on SSM availability
+                    without back-and-forth emails.
+                  </p>
                 </div>
               </div>
+            </div>
 
-              {/* Feature 2 */}
-              <div className="pt-6">
-                <div className="flow-root bg-gray-50 rounded-lg px-6 pb-8">
-                  <div className="-mt-6">
-                    <div>
-                      <span className="inline-flex items-center justify-center p-3 bg-red-500 rounded-md shadow-lg">
-                        <svg
-                          className="h-6 w-6 text-white"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
-                          />
-                        </svg>
-                      </span>
-                    </div>
-                    <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
-                      Availability Management
-                    </h3>
-                    <p className="mt-5 text-base text-gray-600">
-                      SSMs can set and manage their availability in one place,
-                      with automatic calendar updates.
-                    </p>
+            {/* Feature 2 */}
+            <div className="pt-6">
+              <div className="flow-root bg-gray-50 rounded-lg px-6 pb-8">
+                <div className="-mt-6">
+                  <div>
+                    <span className="inline-flex items-center justify-center p-3 bg-red-500 rounded-md shadow-lg">
+                      <svg
+                        className="h-6 w-6 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2"
+                        />
+                      </svg>
+                    </span>
                   </div>
+                  <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                    Availability Management
+                  </h3>
+                  <p className="mt-5 text-base text-gray-600">
+                    SSMs can set and manage their availability in one place,
+                    with automatic calendar updates.
+                  </p>
                 </div>
               </div>
+            </div>
 
-              {/* Feature 3 */}
-              <div className="pt-6">
-                <div className="flow-root bg-gray-50 rounded-lg px-6 pb-8">
-                  <div className="-mt-6">
-                    <div>
-                      <span className="inline-flex items-center justify-center p-3 bg-red-500 rounded-md shadow-lg">
-                        <svg
-                          className="h-6 w-6 text-white"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M13 10V3L4 14h7v7l9-11h-7z"
-                          />
-                        </svg>
-                      </span>
-                    </div>
-                    <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
-                      Seamless Integration
-                    </h3>
-                    <p className="mt-5 text-base text-gray-600">
-                      Works with your existing LMS through disco_user_id for a
-                      frictionless experience.
-                    </p>
+            {/* Feature 3 */}
+            <div className="pt-6">
+              <div className="flow-root bg-gray-50 rounded-lg px-6 pb-8">
+                <div className="-mt-6">
+                  <div>
+                    <span className="inline-flex items-center justify-center p-3 bg-red-500 rounded-md shadow-lg">
+                      <svg
+                        className="h-6 w-6 text-white"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13 10V3L4 14h7v7l9-11h-7z"
+                        />
+                      </svg>
+                    </span>
                   </div>
+                  <h3 className="mt-8 text-lg font-medium text-gray-900 tracking-tight">
+                    Seamless Integration
+                  </h3>
+                  <p className="mt-5 text-base text-gray-600">
+                    Works with your existing LMS through disco_user_id for a
+                    frictionless experience.
+                  </p>
                 </div>
               </div>
             </div>
@@ -189,7 +224,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* How It Works Section */}
+      {/* How It Works */}
       <div id="how-it-works" className="py-12 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
@@ -202,7 +237,6 @@ export default function HomePage() {
           </div>
 
           <div className="mt-12 grid grid-cols-1 gap-8 md:grid-cols-3">
-            {/* Student Step */}
             <div className="bg-white rounded-lg shadow-md p-6">
               <div className="flex items-center justify-center h-12 w-12 rounded-md bg-red-500 text-white text-xl font-bold">
                 1
@@ -219,7 +253,6 @@ export default function HomePage() {
               </div>
             </div>
 
-            {/* SSM Step */}
             <div className="bg-white rounded-lg shadow-md p-6">
               <div className="flex items-center justify-center h-12 w-12 rounded-md bg-red-500 text-white text-xl font-bold">
                 2
@@ -232,16 +265,15 @@ export default function HomePage() {
                 your dashboard.
               </p>
               <div className="mt-4">
-                <a
+                <Link
                   href="/login"
                   className="text-red-600 hover:text-red-800 text-sm font-medium"
                 >
                   Login to get started →
-                </a>
+                </Link>
               </div>
             </div>
 
-            {/* Admin Step */}
             <div className="bg-white rounded-lg shadow-md p-6">
               <div className="flex items-center justify-center h-12 w-12 rounded-md bg-red-500 text-white text-xl font-bold">
                 3
@@ -254,12 +286,12 @@ export default function HomePage() {
                 reports.
               </p>
               <div className="mt-4">
-                <a
+                <Link
                   href="/login"
                   className="text-red-600 hover:text-red-800 text-sm font-medium"
                 >
                   Access admin dashboard →
-                </a>
+                </Link>
               </div>
             </div>
           </div>
@@ -296,5 +328,22 @@ export default function HomePage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-indigo-100">
+          <div className="text-center">
+            <div className="w-16 h-16 border-4 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-gray-600">Loading…</p>
+          </div>
+        </div>
+      }
+    >
+      <HomeInner />
+    </Suspense>
   );
 }

@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/lib/toast";
 import { TextField, Select, MenuItem, Button } from "@mui/material";
-import Navbar from "@/app/components/Navbar";
 
 type AvailabilityCreate = {
   day_of_week: number;
@@ -56,6 +55,7 @@ export default function SsmDashboard() {
   const { user, loading: authLoading } = useAuth();
   const { addToast } = useToast();
   const router = useRouter();
+
   const [avail, setAvail] = useState<AvailabilityCreate>({
     day_of_week: 1,
     start_time: "09:00",
@@ -63,11 +63,57 @@ export default function SsmDashboard() {
   });
   const [ooo, setOoo] = useState({ start: "", end: "", reason: "" });
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("availability");
+  const [activeTab, setActiveTab] = useState<
+    "availability" | "ooo" | "bookings" | "integration"
+  >("availability");
   const [availabilities, setAvailabilities] = useState<Availability[]>([]);
   const [oooList, setOooList] = useState<OutOfOffice[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
 
+  // --- data loaders (memoized) ---
+  const fetchAvailabilities = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await apiGet<Availability[]>(
+        `/availability/user/${user.user_id}`
+      );
+      setAvailabilities(data);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to fetch availabilities";
+      addToast(msg, "error");
+    }
+  }, [user, addToast]);
+
+  const fetchOoo = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await apiGet<OutOfOffice[]>(
+        `/availability/ooo/${user.user_id}`
+      );
+      setOooList(data);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Failed to fetch out-of-office periods";
+      addToast(msg, "error");
+    }
+  }, [user, addToast]);
+
+  const fetchBookings = useCallback(async () => {
+    if (!user) return;
+    try {
+      const data = await apiGet<Booking[]>(`/booking/ssm/${user.user_id}`);
+      setBookings(data);
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to fetch bookings";
+      addToast(msg, "error");
+    }
+  }, [user, addToast]);
+
+  // --- auth guard + initial loads ---
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login");
@@ -77,68 +123,32 @@ export default function SsmDashboard() {
       router.push("/");
       return;
     }
-
     if (user) {
       fetchAvailabilities();
       fetchOoo();
       fetchBookings();
     }
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, fetchAvailabilities, fetchOoo, fetchBookings]);
 
-  async function fetchAvailabilities() {
-    if (!user) return;
-    try {
-      const data = await apiGet<Availability[]>(
-        `/availability/user/${user.user_id}`
-      );
-      setAvailabilities(data);
-    } catch (e: any) {
-      addToast("Failed to fetch availabilities", "error");
-    }
-  }
-
-  async function fetchOoo() {
-    if (!user) return;
-    try {
-      const data = await apiGet<OutOfOffice[]>(
-        `/availability/ooo/${user.user_id}`
-      );
-      setOooList(data);
-    } catch (e: any) {
-      addToast("Failed to fetch out-of-office periods", "error");
-    }
-  }
-
-  async function fetchBookings() {
-    if (!user) return;
-    try {
-      const data = await apiGet<Booking[]>(`/booking/ssm/${user.user_id}`);
-      setBookings(data);
-    } catch (e: any) {
-      addToast("Failed to fetch bookings", "error");
-    }
-  }
-
+  // --- actions ---
   async function addAvailability(e: React.FormEvent) {
     e.preventDefault();
     if (!user || loading) return;
 
     setLoading(true);
     try {
-      await apiPost("/availability/add?user_id=" + user.user_id, {
+      await apiPost("/availability/add", {
         day_of_week: avail.day_of_week,
-        start_time: avail.start_time + ":00",
-        end_time: avail.end_time + ":00",
+        start_time: `${avail.start_time}:00`,
+        end_time: `${avail.end_time}:00`,
       });
       addToast("Availability added successfully", "success");
-      setAvail({
-        day_of_week: 1,
-        start_time: "09:00",
-        end_time: "17:00",
-      });
+      setAvail({ day_of_week: 1, start_time: "09:00", end_time: "17:00" });
       fetchAvailabilities();
-    } catch (e: any) {
-      addToast(e.message || "Failed to add availability", "error");
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to add availability";
+      addToast(msg, "error");
     } finally {
       setLoading(false);
     }
@@ -148,13 +158,11 @@ export default function SsmDashboard() {
     e.preventDefault();
     if (!user || loading) return;
 
-    // Convert naive local datetimes to UTC ISO with Z
     const startIso = new Date(ooo.start).toISOString();
     const endIso = new Date(ooo.end).toISOString();
 
     setLoading(true);
     try {
-      // POST to /availability/ooo (no user_id param)
       await apiPost("/availability/ooo", {
         start_datetime: startIso,
         end_datetime: endIso,
@@ -163,8 +171,12 @@ export default function SsmDashboard() {
       addToast("Out-of-office block added successfully", "success");
       setOoo({ start: "", end: "", reason: "" });
       fetchOoo();
-    } catch (e: any) {
-      addToast(e.message || "Failed to add out-of-office block", "error");
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Failed to add out-of-office block";
+      addToast(msg, "error");
     } finally {
       setLoading(false);
     }
@@ -174,16 +186,14 @@ export default function SsmDashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-600 mx-auto" />
           <p className="mt-4 text-gray-600">Loading your dashboard...</p>
         </div>
       </div>
     );
   }
 
-  if (!user || user.role !== "ssm") {
-    return null;
-  }
+  if (!user || user.role !== "ssm") return null;
 
   const dayNames = [
     "Sunday",
@@ -200,7 +210,7 @@ export default function SsmDashboard() {
       <div className="max-w-6xl mx-auto px-4">
         {/* Header */}
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
                 SSM Dashboard
@@ -209,15 +219,16 @@ export default function SsmDashboard() {
                 Welcome back, {user.full_name}
               </p>
             </div>
-            <div className="mt-4 sm:mt-0 flex items-center">
+            <div className="flex items-center gap-3">
               <div className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
                 {bookings.length} upcoming sessions
               </div>
+              <LogoutButton />
             </div>
           </div>
         </div>
 
-        {/* Tab Navigation */}
+        {/* Tabs */}
         <div className="bg-white rounded-xl shadow-sm mb-6">
           <nav className="flex overflow-x-auto">
             {[
@@ -232,7 +243,7 @@ export default function SsmDashboard() {
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
                 className={`px-6 py-4 text-sm font-medium border-b-2 transition-colors ${
                   activeTab === tab.id
                     ? "border-red-500 text-red-600"
@@ -240,7 +251,7 @@ export default function SsmDashboard() {
                 }`}
               >
                 {tab.name}
-                {tab.count !== undefined && (
+                {typeof tab.count === "number" && (
                   <span className="ml-2 bg-gray-100 text-gray-900 py-0.5 px-2 rounded-full text-xs">
                     {tab.count}
                   </span>
@@ -250,7 +261,7 @@ export default function SsmDashboard() {
           </nav>
         </div>
 
-        {/* Tab Content */}
+        {/* Content */}
         <div className="bg-white rounded-xl shadow-sm p-6">
           {activeTab === "availability" && (
             <div className="space-y-6">
@@ -271,10 +282,10 @@ export default function SsmDashboard() {
                         fullWidth
                         value={avail.day_of_week}
                         onChange={(e) =>
-                          setAvail({
-                            ...avail,
+                          setAvail((p) => ({
+                            ...p,
                             day_of_week: Number(e.target.value),
-                          })
+                          }))
                         }
                         variant="outlined"
                         size="small"
@@ -295,7 +306,10 @@ export default function SsmDashboard() {
                         fullWidth
                         value={avail.start_time}
                         onChange={(e) =>
-                          setAvail({ ...avail, start_time: e.target.value })
+                          setAvail((p) => ({
+                            ...p,
+                            start_time: e.target.value,
+                          }))
                         }
                         variant="outlined"
                         size="small"
@@ -310,7 +324,7 @@ export default function SsmDashboard() {
                         fullWidth
                         value={avail.end_time}
                         onChange={(e) =>
-                          setAvail({ ...avail, end_time: e.target.value })
+                          setAvail((p) => ({ ...p, end_time: e.target.value }))
                         }
                         variant="outlined"
                         size="small"
@@ -345,14 +359,11 @@ export default function SsmDashboard() {
                         key={a.availability_id}
                         className="border border-gray-200 rounded-lg p-4"
                       >
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            {dayNames[a.day_of_week]}
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            {a.start_time.slice(0, 5)} -{" "}
-                            {a.end_time.slice(0, 5)}
-                          </div>
+                        <div className="font-medium text-gray-900">
+                          {dayNames[a.day_of_week]}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {a.start_time.slice(0, 5)} - {a.end_time.slice(0, 5)}
                         </div>
                       </div>
                     ))}
@@ -383,14 +394,13 @@ export default function SsmDashboard() {
                         fullWidth
                         value={ooo.start}
                         onChange={(e) =>
-                          setOoo({ ...ooo, start: e.target.value })
+                          setOoo((p) => ({ ...p, start: e.target.value }))
                         }
                         required
                         variant="outlined"
                         size="small"
                       />
                     </div>
-
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
                         End Date & Time
@@ -400,7 +410,7 @@ export default function SsmDashboard() {
                         fullWidth
                         value={ooo.end}
                         onChange={(e) =>
-                          setOoo({ ...ooo, end: e.target.value })
+                          setOoo((p) => ({ ...p, end: e.target.value }))
                         }
                         required
                         variant="outlined"
@@ -418,7 +428,7 @@ export default function SsmDashboard() {
                       placeholder="e.g., Vacation, Sick leave, Conference"
                       value={ooo.reason}
                       onChange={(e) =>
-                        setOoo({ ...ooo, reason: e.target.value })
+                        setOoo((p) => ({ ...p, reason: e.target.value }))
                       }
                       required
                       variant="outlined"
@@ -452,18 +462,16 @@ export default function SsmDashboard() {
                         key={o.ooo_id}
                         className="border border-gray-200 rounded-lg p-4"
                       >
-                        <div>
-                          <div className="font-medium text-gray-900">
-                            {new Date(o.start_datetime).toLocaleDateString()} -{" "}
-                            {new Date(o.end_datetime).toLocaleDateString()}
-                          </div>
-                          <div className="text-sm text-gray-600">
-                            {new Date(o.start_datetime).toLocaleTimeString()} -{" "}
-                            {new Date(o.end_datetime).toLocaleTimeString()}
-                          </div>
-                          <div className="text-sm text-gray-600 mt-1">
-                            {o.reason}
-                          </div>
+                        <div className="font-medium text-gray-900">
+                          {new Date(o.start_datetime).toLocaleDateString()} -{" "}
+                          {new Date(o.end_datetime).toLocaleDateString()}
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {new Date(o.start_datetime).toLocaleTimeString()} -{" "}
+                          {new Date(o.end_datetime).toLocaleTimeString()}
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">
+                          {o.reason}
                         </div>
                       </div>
                     ))}

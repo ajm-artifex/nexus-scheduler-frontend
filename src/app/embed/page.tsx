@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiPost } from "@/lib/api";
-import DashboardLayout from "@/app/components/DashboardLayout";
 
 export default function EmbedPage() {
   const [status, setStatus] = useState<string>("Authenticating...");
