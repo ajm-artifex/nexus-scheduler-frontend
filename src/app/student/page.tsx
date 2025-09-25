@@ -20,14 +20,29 @@ interface SSMInfo {
   email?: string;
 }
 
+type SlotAPI = {
+  ssm_id: number;
+  start_datetime: string; // UTC ISO
+  end_datetime: string; // UTC ISO
+  slot_minutes: number;
+  pathway_id: number;
+};
+
+type SlotsResp = {
+  pathway_id: number;
+  window_start: string;
+  window_end: string;
+  slot_minutes: number;
+  total_slots: number;
+  slots: SlotAPI[];
+};
+
 type SlotView = {
   ssm_id: number;
-  label: string;
   start: string;
   end: string;
   ssm_name: string;
 };
-
 export default function StudentPage() {
   const discoUserId = useQueryParam("disco_user_id");
   const [student, setStudent] = useState<UserOut | null>(null);
