@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/lib/toast";
+import GoogleLoginButton from "@/app/components/GoogleLoginButton";
 import Link from "next/link";
 
 export default function LoginPage() {
@@ -186,7 +187,7 @@ export default function LoginPage() {
               <p className="mt-1 text-sm text-red-600">{errors.password}</p>
             )}
           </div>
-
+          <GoogleLoginButton redirectTo="/ssm" />
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <input

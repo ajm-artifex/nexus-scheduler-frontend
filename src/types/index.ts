@@ -47,3 +47,10 @@ export type BookingOut = {
 	zoom_meeting_id: string;
 	status: string;
 }; 
+
+export type Pathway = {
+  pathway_id: number;
+  name?: string | null;
+  description?: string | null;
+  is_active?: boolean | null;
+};
