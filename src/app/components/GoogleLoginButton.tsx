@@ -1,27 +1,53 @@
 // frontend/src/app/components/GoogleLoginButton.tsx
 "use client";
-const API_BASE =
-  (typeof process !== "undefined" &&
-    (process as unknown as { env?: Record<string, string | undefined> })?.env
-      ?.NEXT_PUBLIC_API_BASE_URL) ||
-  "http://localhost:8000";
+
+import { useMemo } from "react";
+
+type Props = {
+  /** Path on *your frontend* to land on after login (e.g. "/ssm"). Defaults to current path. */
+  redirectTo?: string;
+  /** Button label text */
+  label?: string;
+  /** If true, open in a new tab instead of replacing the current tab */
+  newTab?: boolean;
+};
 
 export default function GoogleLoginButton({
   redirectTo,
   label = "Continue with Google",
-}: {
-  redirectTo?: string;
-  label?: string;
-}) {
-  const href =
-    `${API_BASE}/auth/google/login` +
-    (redirectTo ? `?redirect=${encodeURIComponent(redirectTo)}` : "");
+  newTab = false,
+}: Props) {
+  // Build API base from env with a safe fallback
+  const API_BASE =
+    process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+
+  const href = useMemo(() => {
+    // default redirect is current path (not including query) to avoid open redirect issues
+    const defaultRedirect =
+      typeof window !== "undefined" ? window.location.pathname : "/";
+
+    const redirectParam = encodeURIComponent(redirectTo || defaultRedirect);
+    return `${API_BASE}/auth/google/login?redirect=${redirectParam}`;
+  }, [API_BASE, redirectTo]);
+
+  // If we're inside an iframe (e.g., LMS), target="_top" ensures OAuth opens outside the iframe.
+  // Otherwise, you can opt into a new tab with newTab=true.
+  const target =
+    typeof window !== "undefined" && window.self !== window.top
+      ? "_top"
+      : newTab
+      ? "_blank"
+      : "_self";
+
   return (
     <a
       href={href}
+      target={target}
+      rel={target === "_blank" ? "noopener noreferrer" : undefined}
       className="inline-flex items-center bg-white border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+      aria-label={label}
     >
-      <svg className="w-5 h-5 mr-2" viewBox="0 0 48 48" aria-hidden>
+      <svg className="w-5 h-5 mr-2" viewBox="0 0 48 48" aria-hidden="true">
         <path
           fill="#FFC107"
           d="M43.6 20.5h-1.8V20H24v8h11.3C33.9 31.7 29.4 35 24 35c-6.1 0-11-4.9-11-11s4.9-11 11-11c2.8 0 5.4 1.1 7.3 2.8l5.7-5.7C33.7 6.3 29.1 4 24 4 12.4 4 3 13.4 3 25s9.4 21 21 21 21-9.4 21-21c0-1.5-.2-3-.4-4.5z"
